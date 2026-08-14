@@ -1043,7 +1043,7 @@ textarea.field__i{resize:vertical;min-height:132px}
       </div>
 
       <div data-reveal style="--d:120ms">
-        <form class="form" id="contact-form" novalidate>
+        <form class="form" id="contact-form" action="https://formspree.io/f/xyegpadn" method="POST" novalidate>
           <p class="form__alt">Or send a message here</p>
           <div class="field">
             <label class="field__l" for="f-name">Your name</label>
@@ -1977,38 +1977,104 @@ const techChip = name => '<span class="tchip">'+logoSvg(TECH[name])+esc(name)+'<
       clearTimeout(timer); timer = setTimeout(() => toast.classList.remove('is-on'), 2200);
     } catch (err) { window.location.href = 'mailto:' + text; }
   });
+const form = $('#contact-form'), sent = $('[data-sent]');
 
-  const form = $('#contact-form'), sent = $('[data-sent]');
-  const rules = {
-    'f-name': v => v.trim().length >= 2,
-    'f-email': v => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim()),
-    'f-msg': v => v.trim().length >= 10
-  };
-  const validate = id => {
-    const input = document.getElementById(id), ok = rules[id](input.value);
-    input.closest('.field').classList.toggle('has-error', !ok);
-    input.setAttribute('aria-invalid', String(!ok));
-    return ok;
-  };
-  Object.keys(rules).forEach(id => {
-    const el = document.getElementById(id);
-    el.addEventListener('blur', () => validate(id));
-    el.addEventListener('input', () => { if (el.closest('.field').classList.contains('has-error')) validate(id); });
+const rules = {
+  'f-name': v => v.trim().length >= 2,
+  'f-email': v => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim()),
+  'f-msg': v => v.trim().length >= 10
+};
+
+const validate = id => {
+  const input = document.getElementById(id);
+  const ok = rules[id](input.value);
+
+  input.closest('.field').classList.toggle('has-error', !ok);
+  input.setAttribute('aria-invalid', String(!ok));
+
+  return ok;
+};
+
+Object.keys(rules).forEach(id => {
+  const el = document.getElementById(id);
+
+  el.addEventListener('blur', () => validate(id));
+
+  el.addEventListener('input', () => {
+    if (el.closest('.field').classList.contains('has-error')) {
+      validate(id);
+    }
   });
-  form.addEventListener('submit', e => {
-    e.preventDefault();
-    const ok = Object.keys(rules).map(validate).every(Boolean);
-    if (!ok) { $('.has-error .field__i').focus(); return; }
-    const name = document.getElementById('f-name').value.trim();
-    const email = document.getElementById('f-email').value.trim();
-    const msg = document.getElementById('f-msg').value.trim();
-    const subject = encodeURIComponent('Portfolio inquiry from ' + name);
-    const body = encodeURIComponent('Name: ' + name + '\nEmail: ' + email + '\n\n' + msg);
-    window.location.href = 'mailto:' + PORTFOLIO.email + '?subject=' + subject + '&body=' + body;
-    sent.classList.add('is-on');
-    form.reset();
-  });
-  $('[data-sent-reset]').addEventListener('click', () => { sent.classList.remove('is-on'); $('#f-name').focus(); });
+});
+
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+
+  const ok = Object.keys(rules).map(validate).every(Boolean);
+
+  if (!ok) {
+    const firstError = $('.has-error input, .has-error textarea');
+    if (firstError) firstError.focus();
+    return;
+  }
+
+  const submitButton = form.querySelector('button[type="submit"]');
+  const originalText = submitButton ? submitButton.textContent : '';
+
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent = 'Sending...';
+  }
+
+  const name = document.getElementById('f-name').value.trim();
+  const email = document.getElementById('f-email').value.trim();
+  const msg = document.getElementById('f-msg').value.trim();
+
+  const formData = new FormData();
+
+  formData.append('name', name);
+  formData.append('email', email);
+  formData.append('message', msg);
+  formData.append('_subject', 'Portfolio inquiry from ' + name);
+
+  try {
+    const response = await fetch('https://formspree.io/f/xyegpadn', {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    if (response.ok) {
+      sent.classList.add('is-on');
+      form.reset();
+
+      Object.keys(rules).forEach(id => {
+        const input = document.getElementById(id);
+        input.closest('.field').classList.remove('has-error');
+        input.setAttribute('aria-invalid', 'false');
+      });
+    } else {
+      throw new Error('Form submission failed');
+    }
+
+  } catch (error) {
+    console.error('Contact form error:', error);
+    alert('Sorry, your message could not be sent. Please try again later.');
+  } finally {
+    if (submitButton) {
+      submitButton.disabled = false;
+      submitButton.textContent = originalText;
+    }
+  }
+});
+
+$('[data-sent-reset]').addEventListener('click', () => {
+  sent.classList.remove('is-on');
+  $('#f-name').focus();
+});
+
 })();
 
 /* ================================================================
